@@ -14,7 +14,7 @@ import {
     PanelRightClose, PanelRightOpen, Copy, Share2,
     Plus, ChevronLeft, ChevronRight, FilePlus, Layers,
     Type, Lock, Square, Circle, Minus, ArrowRight,
-    Diamond, MessageCircleOff, GripVertical, Check, X,
+    Monitor, MonitorOff,
     Video, VideoOff, Mic, MicOff, PhoneOff, Phone, Crown
 } from 'lucide-react';
 
@@ -37,7 +37,7 @@ const WhiteboardPage = () => {
 
     const [room, setRoom] = useState(null);
     const [tool, setTool] = useState('pencil');
-    const [color, setColor] = useState('#ffffff');
+    const [color, setColor] = useState(isDark ? '#ffffff' : '#ef4444');
     const [brushSize, setBrushSize] = useState(3);
     const [isDrawing, setIsDrawing] = useState(false);
     const [showColorPicker, setShowColorPicker] = useState(false);
@@ -52,6 +52,7 @@ const WhiteboardPage = () => {
 
     // Access control
     const [allowedDrawers, setAllowedDrawers] = useState([]);
+    const [allowedScreenSharers, setAllowedScreenSharers] = useState([]);
     const [chatMuted, setChatMuted] = useState(false);
 
     // Text tool state
@@ -67,6 +68,7 @@ const WhiteboardPage = () => {
     const [remoteStreams, setRemoteStreams] = useState({}); // { socketId: { stream, username, audioEnabled, videoEnabled } }
     const [isAudioOn, setIsAudioOn] = useState(true);
     const [isVideoOn, setIsVideoOn] = useState(false);
+    const [isScreenSharing, setIsScreenSharing] = useState(false);
     const [isInCall, setIsInCall] = useState(false);
     const [callPrompt, setCallPrompt] = useState(null); // { callerName, callerId, mediaType, socketId }
     const peerConnections = useRef({}); // { socketId: RTCPeerConnection }
@@ -113,10 +115,26 @@ const WhiteboardPage = () => {
         ctx.lineWidth = brushSize;
         contextRef.current = ctx;
 
-        // Fill with background color
-        ctx.fillStyle = isDark ? '#1a1a2e' : '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // Only fill with background if canvas is truly new/empty
+        // (This prevents erasing when toggling theme if we don't redraw)
+        if (history.length === 0) {
+            ctx.fillStyle = isDark ? '#1a1a2e' : '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        } else {
+            // Restore current state
+            const img = new Image();
+            img.onload = () => ctx.drawImage(img, 0, 0);
+            img.src = canvas.toDataURL();
+        }
     }, [isDark]);
+
+    // Update context properties when state changes (Fixes color bug)
+    useEffect(() => {
+        if (contextRef.current) {
+            contextRef.current.strokeStyle = tool === 'eraser' ? (isDark ? '#1a1a2e' : '#ffffff') : color;
+            contextRef.current.lineWidth = tool === 'eraser' ? brushSize * 3 : brushSize;
+        }
+    }, [color, brushSize, tool, isDark]);
 
     // Fetch room data
     useEffect(() => {
@@ -174,6 +192,7 @@ const WhiteboardPage = () => {
 
         socket.on('access-updated', (data) => {
             setAllowedDrawers(data.allowedDrawers || []);
+            setAllowedScreenSharers(data.allowedScreenSharers || []);
         });
 
         socket.on('chat-mute-updated', (data) => {
@@ -874,6 +893,16 @@ const WhiteboardPage = () => {
         toast.success('Drawing access revoked');
     };
 
+    const handleGrantScreenShare = (userId) => {
+        socketRef.current?.emit('grant-screen-share', { roomId, userId });
+        toast.success('Screen share access granted!');
+    };
+
+    const handleRevokeScreenShare = (userId) => {
+        socketRef.current?.emit('revoke-screen-share', { roomId, userId });
+        toast.success('Screen share access revoked');
+    };
+
     // Chat mute handler
     const handleToggleChatMute = () => {
         socketRef.current?.emit('toggle-chat-mute', { roomId });
@@ -1002,11 +1031,101 @@ const WhiteboardPage = () => {
             if (videoTrack) {
                 videoTrack.enabled = !videoTrack.enabled;
                 setIsVideoOn(videoTrack.enabled);
+                // If we turn on video, make sure screen share is off
+                if (videoTrack.enabled && isScreenSharing) {
+                    setIsScreenSharing(false);
+                }
                 socketRef.current?.emit('toggle-media', {
                     roomId,
                     audioEnabled: isAudioOn,
                     videoEnabled: videoTrack.enabled
                 });
+            }
+        }
+    };
+
+    const toggleScreenShare = async () => {
+        if (!isInCall) {
+            toast.error('Join the call first to share screen');
+            return;
+        }
+
+        const canShare = isCurrentUserHost || allowedScreenSharers.includes(user?.id);
+        if (!canShare) {
+            toast.error('Host must grant you screen share permission');
+            return;
+        }
+
+        if (isScreenSharing) {
+            // Stop Screen Share
+            try {
+                // Return to normal video if possible, or just stop
+                const tracks = localStream.getVideoTracks();
+                tracks.forEach(track => {
+                    track.stop();
+                    localStream.removeTrack(track);
+                });
+
+                setIsScreenSharing(false);
+                setIsVideoOn(false);
+
+                socketRef.current?.emit('toggle-media', {
+                    roomId,
+                    audioEnabled: isAudioOn,
+                    videoEnabled: false
+                });
+            } catch (e) {
+                console.error('Error stopping screen share:', e);
+            }
+        } else {
+            // Start Screen Share
+            try {
+                const screenStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: { cursor: "always" },
+                    audio: false
+                });
+                const screenTrack = screenStream.getVideoTracks()[0];
+
+                // Handle stop from browser UI
+                screenTrack.onended = () => {
+                    setIsScreenSharing(false);
+                    setIsVideoOn(false);
+                    socketRef.current?.emit('toggle-media', {
+                        roomId,
+                        audioEnabled: isAudioOn,
+                        videoEnabled: false
+                    });
+                };
+
+                // Replace tracks in local stream
+                const oldVideoTracks = localStream.getVideoTracks();
+                oldVideoTracks.forEach(t => {
+                    t.stop();
+                    localStream.removeTrack(t);
+                });
+                localStream.addTrack(screenTrack);
+
+                // Replace tracks in all peer connections
+                Object.values(peerConnections.current).forEach(pc => {
+                    const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+                    if (sender) {
+                        sender.replaceTrack(screenTrack);
+                    } else {
+                        pc.addTrack(screenTrack, localStream);
+                    }
+                });
+
+                setIsScreenSharing(true);
+                setIsVideoOn(true);
+                socketRef.current?.emit('toggle-media', {
+                    roomId,
+                    audioEnabled: isAudioOn,
+                    videoEnabled: true
+                });
+                toast.success('Screen sharing started!');
+            } catch (err) {
+                console.error('Error starting screen share:', err);
+                toast.error('Failed to share screen');
             }
         }
     };
@@ -1502,11 +1621,18 @@ const WhiteboardPage = () => {
                                         {isAudioOn ? <Mic size={18} /> : <MicOff size={18} />}
                                     </button>
                                     <button
-                                        className={`btn-call ${isVideoOn ? 'active' : ''}`}
+                                        className={`btn-call ${isVideoOn && !isScreenSharing ? 'active' : ''}`}
                                         onClick={toggleVideo}
                                         title={isVideoOn ? 'Turn Off Camera' : 'Turn On Camera'}
                                     >
-                                        {isVideoOn ? <Video size={18} /> : <VideoOff size={18} />}
+                                        {isVideoOn && !isScreenSharing ? <Video size={18} /> : <VideoOff size={18} />}
+                                    </button>
+                                    <button
+                                        className={`btn-call ${isScreenSharing ? 'active' : ''}`}
+                                        onClick={toggleScreenShare}
+                                        title={isScreenSharing ? 'Stop Screen Share' : 'Share Screen'}
+                                    >
+                                        {isScreenSharing ? <MonitorOff size={18} /> : <Monitor size={18} />}
                                     </button>
                                     <button
                                         className="btn-call danger"
@@ -1796,8 +1922,11 @@ const WhiteboardPage = () => {
                         currentUser={user}
                         room={room}
                         allowedDrawers={allowedDrawers}
+                        allowedScreenSharers={allowedScreenSharers}
                         onGrantAccess={handleGrantAccess}
                         onRevokeAccess={handleRevokeAccess}
+                        onGrantScreenShare={handleGrantScreenShare}
+                        onRevokeScreenShare={handleRevokeScreenShare}
                         onKickUser={handleKickParticipant}
                         isCurrentUserHost={isCurrentUserHost}
                     />

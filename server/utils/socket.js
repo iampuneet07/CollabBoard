@@ -60,7 +60,8 @@ const setupSocket = (io) => {
                 const roomData = await Room.findOne({ roomId });
                 if (roomData) {
                     socket.emit('access-updated', {
-                        allowedDrawers: roomData.allowedDrawers.map(id => id.toString())
+                        allowedDrawers: roomData.allowedDrawers.map(id => id.toString()),
+                        allowedScreenSharers: roomData.allowedScreenSharers ? roomData.allowedScreenSharers.map(id => id.toString()) : []
                     });
                     socket.emit('chat-mute-updated', {
                         chatMuted: roomData.chatMuted
@@ -198,10 +199,56 @@ const setupSocket = (io) => {
                 await room.save();
 
                 io.to(data.roomId).emit('access-updated', {
-                    allowedDrawers: room.allowedDrawers.map(id => id.toString())
+                    allowedDrawers: room.allowedDrawers.map(id => id.toString()),
+                    allowedScreenSharers: room.allowedScreenSharers ? room.allowedScreenSharers.map(id => id.toString()) : []
                 });
             } catch (error) {
                 console.error('Revoke Access Socket Error:', error);
+            }
+        });
+
+        socket.on('grant-screen-share', async (data) => {
+            try {
+                const room = await Room.findOne({ roomId: data.roomId });
+                if (!room) return;
+                if (room.host.toString() !== socket.user._id.toString()) return;
+
+                if (!room.allowedScreenSharers) room.allowedScreenSharers = [];
+                const alreadyAllowed = room.allowedScreenSharers.some(
+                    id => id.toString() === data.userId.toString()
+                );
+                if (!alreadyAllowed) {
+                    room.allowedScreenSharers.push(data.userId);
+                    await room.save();
+                }
+
+                io.to(data.roomId).emit('access-updated', {
+                    allowedDrawers: room.allowedDrawers.map(id => id.toString()),
+                    allowedScreenSharers: room.allowedScreenSharers.map(id => id.toString())
+                });
+            } catch (error) {
+                console.error('Grant Screen Share Socket Error:', error);
+            }
+        });
+
+        socket.on('revoke-screen-share', async (data) => {
+            try {
+                const room = await Room.findOne({ roomId: data.roomId });
+                if (!room) return;
+                if (room.host.toString() !== socket.user._id.toString()) return;
+
+                if (!room.allowedScreenSharers) room.allowedScreenSharers = [];
+                room.allowedScreenSharers = room.allowedScreenSharers.filter(
+                    id => id.toString() !== data.userId.toString()
+                );
+                await room.save();
+
+                io.to(data.roomId).emit('access-updated', {
+                    allowedDrawers: room.allowedDrawers.map(id => id.toString()),
+                    allowedScreenSharers: room.allowedScreenSharers.map(id => id.toString())
+                });
+            } catch (error) {
+                console.error('Revoke Screen Share Socket Error:', error);
             }
         });
 
