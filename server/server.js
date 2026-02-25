@@ -11,8 +11,15 @@ const setupSocket = require('./utils/socket');
 // Import Routes
 const authRoutes = require('./routes/authRoutes');
 const roomRoutes = require('./routes/roomRoutes');
-const whiteboardRoutes = require('./routes/whiteboardRoutes');
 const messageRoutes = require('./routes/messageRoutes');
+const whiteboardRoutes = require('./routes/whiteboardRoutes');
+
+// Configuration
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    process.env.CLIENT_URL
+].filter(Boolean);
 
 const app = express();
 const server = http.createServer(app);
@@ -20,7 +27,14 @@ const server = http.createServer(app);
 // Socket.io Setup
 const io = new Server(server, {
     cors: {
-        origin: process.env.CLIENT_URL || 'http://localhost:5173',
+        origin: function (origin, callback) {
+            if (!origin) return callback(null, true);
+            const isAllowed = allowedOrigins.some(ao => ao === origin) ||
+                origin.endsWith('.vercel.app') ||
+                origin.endsWith('.onrender.com');
+            if (isAllowed) callback(null, true);
+            else callback(new Error('Not allowed by CORS'));
+        },
         methods: ['GET', 'POST'],
         credentials: true
     },
@@ -31,12 +45,6 @@ const io = new Server(server, {
 connectDB();
 
 // Middleware
-const allowedOrigins = [
-    'http://localhost:5173',
-    'http://localhost:3000',
-    process.env.CLIENT_URL
-].filter(Boolean);
-
 app.use(cors({
     origin: function (origin, callback) {
         // Allow requests with no origin (like mobile apps or curl)
