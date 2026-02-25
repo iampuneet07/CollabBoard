@@ -24,7 +24,10 @@ const Login = () => {
             toast.success('Welcome back! 🎨');
             navigate('/dashboard');
         } catch (error) {
-            const msg = error.response?.data?.message || 'Login failed. Please try again.';
+            console.error('Login error:', error);
+            const msg = error.response?.data?.message ||
+                (error.response?.data?.errors ? error.response.data.errors[0].msg : null) ||
+                'Connection to server failed. Please ensure the backend is running.';
             toast.error(msg);
         } finally {
             setLoading(false);

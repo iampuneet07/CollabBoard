@@ -8,6 +8,7 @@
         "server": "npm run dev --prefix server",
         "client": "npm run dev --prefix client",
         "dev": "npm run dev --prefix server",
+        "dev-all": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
         "build": "echo 'Skipping client build on backend' && npm install --prefix server",
         "start": "node server/server.js"
     },

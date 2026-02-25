@@ -37,7 +37,10 @@ const Register = () => {
             toast.success('Account created! Welcome aboard! 🎉');
             navigate('/dashboard');
         } catch (error) {
-            const msg = error.response?.data?.message || 'Registration failed.';
+            console.error('Registration error:', error);
+            const msg = error.response?.data?.message ||
+                (error.response?.data?.errors ? error.response.data.errors[0].msg : null) ||
+                'Registration failed. Please check your connection.';
             toast.error(msg);
         } finally {
             setLoading(false);

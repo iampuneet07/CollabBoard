@@ -1,6 +1,13 @@
 const mongoose = require('mongoose');
+const dns = require('dns');
 
-// Removed manual DNS override for Render compatibility
+// Use Google DNS to resolve MongoDB Atlas SRV records
+// (fixes ECONNREFUSED or hangs on some ISPs/networks)
+try {
+  dns.setServers(['8.8.8.8', '8.8.4.4']);
+} catch (e) {
+  console.warn('Could not set DNS servers, using default.');
+}
 
 
 const connectDB = async () => {
