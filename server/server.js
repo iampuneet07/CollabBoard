@@ -69,7 +69,10 @@ setupSocket(io);
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error('Server Error:', err.stack);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({
+        message: 'Internal server error',
+        error: process.env.NODE_ENV === 'production' ? err.message : err.stack
+    });
 });
 
 const PORT = process.env.PORT || 5000;
