@@ -1,0 +1,56 @@
+Initialized empty Git repository in C:/Users/kumar/OneDrive/Desktop/Capstone Project/.git/
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'WIREFRAME_DOCUMENTATION.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/.gitignore', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/index.html', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/package.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/App.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/components/auth/ProtectedRoute.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/components/chat/ChatPanel.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/components/room/UsersPanel.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/components/ui/ShareModal.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/contexts/AuthContext.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/contexts/ThemeContext.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/counter.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/index.css', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/main.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/main.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/pages/Dashboard.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/pages/Login.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/pages/MobileResponsiveDemo.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/pages/Register.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/pages/SimpleWhiteboard.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/pages/WhiteboardPage.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/style.css', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/utils/api.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/utils/socket.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/tsconfig.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/vite.config.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'git_check.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'git_log.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'package.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/config/db.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/controllers/authController.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/controllers/messageController.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/controllers/roomController.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/controllers/whiteboardController.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/middleware/auth.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/models/Message.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/models/Room.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/models/User.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/models/Whiteboard.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/package.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/routes/authRoutes.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/routes/messageRoutes.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/routes/roomRoutes.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/routes/whiteboardRoutes.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/server.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/utils/socket.js', LF will be replaced by CRLF the next time Git touches it
+error: pathspec 'commit' did not match any file(s) known to git
+error: pathspec 'with' did not match any file(s) known to git
+error: pathspec 'whiteboard' did not match any file(s) known to git
+error: pathspec 'and' did not match any file(s) known to git
+error: pathspec 'video' did not match any file(s) known to git
+error: pathspec 'call' did not match any file(s) known to git
+error: pathspec 'features"' did not match any file(s) known to git
