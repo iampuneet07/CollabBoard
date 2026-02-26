@@ -9,6 +9,8 @@ import Dashboard from './pages/Dashboard';
 import WhiteboardPage from './pages/WhiteboardPage';
 import SimpleWhiteboard from './pages/SimpleWhiteboard';
 import MobileResponsiveDemo from './pages/MobileResponsiveDemo';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 function App() {
     return (
@@ -18,6 +20,8 @@ function App() {
                     <Routes>
                         <Route path="/login" element={<Login />} />
                         <Route path="/register" element={<Register />} />
+                        <Route path="/forgot-password" element={<ForgotPassword />} />
+                        <Route path="/reset-password/:token" element={<ResetPassword />} />
                         <Route
                             path="/dashboard"
                             element={

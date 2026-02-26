@@ -480,7 +480,8 @@ const setupSocket = (io) => {
                 userId: socket.user._id,
                 socketId: socket.id,
                 audioEnabled: data.audioEnabled,
-                videoEnabled: data.videoEnabled
+                videoEnabled: data.videoEnabled,
+                isScreenSharing: data.isScreenSharing
             });
         });
 

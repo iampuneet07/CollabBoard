@@ -32,6 +32,9 @@ const io = new Server(server, {
             const isAllowed = allowedOrigins.some(ao => ao === origin) ||
                 origin.endsWith('.vercel.app') ||
                 origin.endsWith('.onrender.com');
+
+            if (!isAllowed) console.log('🔴 Socket.io CORS Blocked:', origin);
+
             if (isAllowed) callback(null, true);
             else callback(new Error('Not allowed by CORS'));
         },
@@ -47,12 +50,15 @@ connectDB();
 // Middleware
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl)
         if (!origin) return callback(null, true);
 
         const isAllowed = allowedOrigins.some(ao => ao === origin) ||
             origin.endsWith('.vercel.app') ||
             origin.endsWith('.onrender.com');
+
+        if (!isAllowed) {
+            console.log('🔴 CORS Blocked Origin:', origin);
+        }
 
         if (isAllowed) {
             callback(null, true);

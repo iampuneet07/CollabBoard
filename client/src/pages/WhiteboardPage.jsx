@@ -15,7 +15,8 @@ import {
     Plus, ChevronLeft, ChevronRight, FilePlus, Layers,
     Type, Lock, Square, Circle, Minus, ArrowRight,
     Monitor, MonitorOff,
-    Video, VideoOff, Mic, MicOff, PhoneOff, Phone, Crown
+    Video, VideoOff, Mic, MicOff, PhoneOff, Phone, Crown,
+    Diamond, GripVertical, Check, Maximize2, Minimize2, X
 } from 'lucide-react';
 
 const COLORS = [
@@ -59,6 +60,7 @@ const WhiteboardPage = () => {
     const [textInput, setTextInput] = useState('');
     const [textPosition, setTextPosition] = useState(null);
     const [textFontSize, setTextFontSize] = useState(20);
+    const [maximizedSocketId, setMaximizedSocketId] = useState(null);
     const textInputRef = useRef(null);
     const [isDraggingText, setIsDraggingText] = useState(false);
     const textDragOffset = useRef({ x: 0, y: 0 });
@@ -131,25 +133,40 @@ const WhiteboardPage = () => {
     // Update context properties when state changes (Fixes color bug)
     useEffect(() => {
         if (contextRef.current) {
-            contextRef.current.strokeStyle = tool === 'eraser' ? (isDark ? '#1a1a2e' : '#ffffff') : color;
-            contextRef.current.lineWidth = tool === 'eraser' ? brushSize * 3 : brushSize;
+            const ctx = contextRef.current;
+            ctx.strokeStyle = tool === 'eraser' ? (isDark ? '#1a1a2e' : '#ffffff') : color;
+            ctx.lineWidth = tool === 'eraser' ? brushSize * 3 : brushSize;
+
+            // Log for debugging
+            console.log('🎨 Color Updated:', color, 'Tool:', tool);
         }
     }, [color, brushSize, tool, isDark]);
 
     // Fetch room data
     useEffect(() => {
+        let timeout;
         const fetchRoom = async () => {
             try {
+                // Set a timeout to prevent infinite loading/black screen
+                timeout = setTimeout(() => {
+                    if (loading) {
+                        toast.error('Connection timeout. Please try again.');
+                        navigate('/dashboard');
+                    }
+                }, 10000);
+
                 const res = await api.get(`/rooms/${roomId}`);
                 setRoom(res.data.room);
+                setLoading(false);
+                clearTimeout(timeout);
             } catch (error) {
-                toast.error('Room not found');
+                clearTimeout(timeout);
+                toast.error('Room not found or connection error');
                 navigate('/dashboard');
-                return;
             }
-            setLoading(false);
         };
         fetchRoom();
+        return () => clearTimeout(timeout);
     }, [roomId, navigate]);
 
     // Initialize canvas and socket
@@ -258,7 +275,14 @@ const WhiteboardPage = () => {
             const pc = peerConnections.current[data.senderSocketId];
             if (pc) {
                 try {
-                    await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    const candidate = new RTCIceCandidate(data.candidate);
+                    if (pc.remoteDescription) {
+                        await pc.addIceCandidate(candidate);
+                    } else {
+                        // Queue the candidate until remote description is set
+                        if (!pc.candidateQueue) pc.candidateQueue = [];
+                        pc.candidateQueue.push(candidate);
+                    }
                 } catch (e) {
                     console.error('Error adding received ice candidate', e);
                 }
@@ -273,7 +297,8 @@ const WhiteboardPage = () => {
                     [data.socketId]: {
                         ...prev[data.socketId],
                         audioEnabled: data.audioEnabled,
-                        videoEnabled: data.videoEnabled
+                        videoEnabled: data.videoEnabled,
+                        isScreenSharing: data.isScreenSharing
                     }
                 };
             });
@@ -653,6 +678,8 @@ const WhiteboardPage = () => {
         }
 
         const ctx = contextRef.current;
+        ctx.strokeStyle = tool === 'eraser' ? (isDark ? '#1a1a2e' : '#ffffff') : color;
+        ctx.lineWidth = tool === 'eraser' ? brushSize * 3 : brushSize;
         ctx.lineTo(x, y);
         ctx.stroke();
 
@@ -661,7 +688,7 @@ const WhiteboardPage = () => {
         socketRef.current?.emit('draw-move', {
             roomId,
             x, y,
-            color,
+            color: tool === 'eraser' ? (isDark ? '#1a1a2e' : '#ffffff') : color,
             brushSize: tool === 'eraser' ? brushSize * 3 : brushSize,
             tool
         });
@@ -1093,7 +1120,8 @@ const WhiteboardPage = () => {
                     socketRef.current?.emit('toggle-media', {
                         roomId,
                         audioEnabled: isAudioOn,
-                        videoEnabled: false
+                        videoEnabled: false,
+                        isScreenSharing: false
                     });
                 };
 
@@ -1120,7 +1148,8 @@ const WhiteboardPage = () => {
                 socketRef.current?.emit('toggle-media', {
                     roomId,
                     audioEnabled: isAudioOn,
-                    videoEnabled: true
+                    videoEnabled: true,
+                    isScreenSharing: true
                 });
                 toast.success('Screen sharing started!');
             } catch (err) {
@@ -1161,14 +1190,22 @@ const WhiteboardPage = () => {
             }));
         };
 
-        if (isOffer) {
-            pc.createOffer().then(offer => {
-                pc.setLocalDescription(offer);
+        pc.onnegotiationneeded = async () => {
+            try {
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
                 socketRef.current?.emit('webrtc-offer', {
                     targetSocketId,
-                    offer: offer
+                    offer: pc.localDescription
                 });
-            });
+            } catch (err) {
+                console.error('Error during renegotiation:', err);
+            }
+        };
+
+        if (isOffer) {
+            // The initial offer will be triggered by onnegotiationneeded when tracks are added.
+            // But if no tracks were added, we might need a manual one. However, we always add local tracks first.
         }
 
         return pc;
@@ -1180,14 +1217,31 @@ const WhiteboardPage = () => {
         // but here we only answer if we are already 'in call' state
         if (!isInCall) return;
 
-        const pc = initiatePeerConnection(data.callerSocketId, data.callerName, data.callerId, false);
-        await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        socketRef.current?.emit('webrtc-answer', {
-            targetSocketId: data.callerSocketId,
-            answer: answer
-        });
+        let pc = peerConnections.current[data.callerSocketId];
+        if (!pc) {
+            pc = initiatePeerConnection(data.callerSocketId, data.callerName, data.callerId, false);
+        }
+
+        try {
+            await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+
+            // Process any queued ICE candidates now that remote description is set
+            if (pc.candidateQueue && pc.candidateQueue.length > 0) {
+                for (const candidate of pc.candidateQueue) {
+                    await pc.addIceCandidate(candidate);
+                }
+                pc.candidateQueue = [];
+            }
+
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            socketRef.current?.emit('webrtc-answer', {
+                targetSocketId: data.callerSocketId,
+                answer: pc.localDescription
+            });
+        } catch (error) {
+            console.error('Error handling WebRTC offer:', error);
+        }
     };
 
     const closePeerConnection = (socketId) => {
@@ -1200,6 +1254,25 @@ const WhiteboardPage = () => {
             delete newState[socketId];
             return newState;
         });
+        if (maximizedSocketId === socketId) {
+            setMaximizedSocketId(null);
+        }
+    };
+
+    // Native Fullscreen Helper
+    const toggleNativeFullscreen = (socketId) => {
+        const videoElement = document.getElementById(`video-${socketId}`);
+        if (!videoElement) return;
+
+        if (!document.fullscreenElement) {
+            if (videoElement.requestFullscreen) {
+                videoElement.requestFullscreen();
+            } else if (videoElement.webkitRequestFullscreen) {
+                videoElement.webkitRequestFullscreen();
+            }
+        } else {
+            document.exitFullscreen();
+        }
     };
 
     // Auto-connect with anyone already in call when we join the call
@@ -1717,24 +1790,133 @@ const WhiteboardPage = () => {
                             {/* Remote Videos */}
                             {Object.entries(remoteStreams).map(([socketId, data]) => {
                                 const isUserHost = room?.host?._id === data.userId || room?.host === data.userId;
+                                const isMaximized = maximizedSocketId === socketId;
+
+                                if (isMaximized) return null; // Rendered in separate overlay
+
                                 return (
-                                    <div key={socketId} className={`video-card ${isUserHost ? 'host-card' : ''}`}>
+                                    <div
+                                        key={socketId}
+                                        className={`video-card ${isUserHost ? 'host-card' : ''}`}
+                                    >
                                         <video
+                                            id={`video-${socketId}`}
                                             autoPlay
                                             playsInline
                                             ref={el => { if (el) el.srcObject = data.stream; }}
                                         />
                                         <div className="video-label">
                                             {isUserHost && <Crown size={10} style={{ marginRight: '4px' }} />}
-                                            {data.username} {isUserHost ? '(Host)' : ''}
+                                            {data.isScreenSharing ? '🖥️ ' : ''}{data.username} {isUserHost ? '(Host)' : ''}
                                         </div>
                                         <div className="video-status-icons">
+                                            <button
+                                                className="video-action-btn"
+                                                onClick={() => toggleNativeFullscreen(socketId)}
+                                                title="Browser Fullscreen (Best for PPT)"
+                                            >
+                                                <Maximize2 size={12} />
+                                            </button>
+                                            <button
+                                                className="video-action-btn"
+                                                onClick={() => setMaximizedSocketId(socketId)}
+                                                title="Theater Mode"
+                                            >
+                                                <Layers size={12} />
+                                            </button>
                                             {!data.audioEnabled && <div className="status-icon-muted"><MicOff size={10} /></div>}
                                             {!data.videoEnabled && <div className="status-icon-muted"><VideoOff size={10} /></div>}
                                         </div>
                                     </div>
                                 );
                             })}
+                        </div>
+                    )}
+
+                    {/* Maximized Video Overlay (Theater Mode) */}
+                    {maximizedSocketId && remoteStreams[maximizedSocketId] && (
+                        <div
+                            style={{
+                                position: 'fixed',
+                                top: 0,
+                                left: 0,
+                                width: '100vw',
+                                height: '100vh',
+                                backgroundColor: 'rgba(0,0,0,0.95)',
+                                zIndex: 9999,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                        >
+                            <video
+                                id={`video-${maximizedSocketId}`}
+                                autoPlay
+                                playsInline
+                                ref={el => { if (el) el.srcObject = remoteStreams[maximizedSocketId].stream; }}
+                                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                            />
+                            {/* Close Button */}
+                            <button
+                                style={{
+                                    position: 'absolute',
+                                    top: '20px',
+                                    right: '20px',
+                                    background: 'var(--danger)',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '50%',
+                                    width: '44px',
+                                    height: '44px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                                    zIndex: 10000
+                                }}
+                                onClick={() => setMaximizedSocketId(null)}
+                                title="Close Theater Mode"
+                            >
+                                <X size={24} />
+                            </button>
+                            {/* User Info & Controls */}
+                            <div style={{
+                                position: 'absolute',
+                                bottom: '30px',
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                color: 'white',
+                                background: 'rgba(0,0,0,0.6)',
+                                padding: '12px 24px',
+                                borderRadius: '30px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '16px',
+                                backdropFilter: 'blur(8px)',
+                                border: '1px solid rgba(255,255,255,0.1)'
+                            }}>
+                                <span style={{ fontWeight: 600, fontSize: '1.1rem' }}>
+                                    {remoteStreams[maximizedSocketId].isScreenSharing ? '🖥️ ' : ''}
+                                    {remoteStreams[maximizedSocketId].username}
+                                </span>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    {!remoteStreams[maximizedSocketId].audioEnabled && (
+                                        <div className="status-icon-muted" style={{ padding: '6px' }}><MicOff size={14} /></div>
+                                    )}
+                                    {!remoteStreams[maximizedSocketId].videoEnabled && (
+                                        <div className="status-icon-muted" style={{ padding: '6px' }}><VideoOff size={14} /></div>
+                                    )}
+                                    <button
+                                        className="video-action-btn"
+                                        style={{ background: 'var(--accent-primary)', padding: '6px 10px' }}
+                                        onClick={() => toggleNativeFullscreen(maximizedSocketId)}
+                                        title="Native Fullscreen"
+                                    >
+                                        <Maximize2 size={14} />
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     )}
 

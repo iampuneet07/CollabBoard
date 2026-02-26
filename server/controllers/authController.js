@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { validationResult } = require('express-validator');
 const User = require('../models/User');
+const sendEmail = require('../utils/sendEmail');
 
 // Generate JWT Token
 const generateToken = (id) => {
@@ -96,7 +98,9 @@ exports.getMe = async (req, res) => {
         if (!user) {
             return res.status(404).json({ message: 'User not found.' });
         }
-        res.json({ user });
+        const userObj = user.toObject();
+        userObj.id = user._id; // Ensure consistent id field
+        res.json({ user: userObj });
     } catch (error) {
         console.error('GetMe Error:', error);
         res.status(500).json({ message: 'Server error.' });
@@ -131,5 +135,91 @@ exports.updateProfile = async (req, res) => {
     } catch (error) {
         console.error('UpdateProfile Error:', error);
         res.status(500).json({ message: 'Server error.' });
+    }
+};
+
+// @desc    Forgot Password
+// @route   POST /api/auth/forgot-password
+exports.forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found with this email.' });
+        }
+
+        // Get reset token
+        const resetToken = crypto.randomBytes(20).toString('hex');
+
+        // Hash token and set to resetPasswordToken field
+        user.resetPasswordToken = crypto
+            .createHash('sha256')
+            .update(resetToken)
+            .digest('hex');
+
+        // Set expire (10 minutes)
+        user.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
+
+        await user.save({ validateBeforeSave: false });
+
+        // Create reset url
+        const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
+
+        const message = `You are receiving this email because you (or someone else) has requested the reset of a password. Please click on the link below to reset your password:\n\n${resetUrl}\n\nThis link will expire in 10 minutes. If you did not request this, please ignore this email.`;
+
+        try {
+            await sendEmail({
+                email: user.email,
+                subject: 'Password Reset Request - CollabBoard',
+                message
+            });
+
+            res.status(200).json({ message: 'Reset link sent to your email!' });
+        } catch (err) {
+            console.error('Email Send Error:', err);
+            user.resetPasswordToken = undefined;
+            user.resetPasswordExpire = undefined;
+            await user.save({ validateBeforeSave: false });
+            return res.status(500).json({ message: 'Email could not be sent. Please try again later.' });
+        }
+    } catch (error) {
+        console.error('ForgotPassword Error:', error);
+        res.status(500).json({ message: 'Server error during forgot password.' });
+    }
+};
+
+// @desc    Reset Password
+// @route   PUT /api/auth/reset-password/:token
+exports.resetPassword = async (req, res) => {
+    try {
+        // Get hashed token
+        const resetPasswordToken = crypto
+            .createHash('sha256')
+            .update(req.params.token)
+            .digest('hex');
+
+        const user = await User.findOne({
+            resetPasswordToken,
+            resetPasswordExpire: { $gt: Date.now() }
+        });
+
+        if (!user) {
+            return res.status(400).json({ message: 'Invalid or expired reset token.' });
+        }
+
+        // Set new password
+        user.password = req.body.password;
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpire = undefined;
+
+        await user.save();
+
+        res.status(200).json({
+            message: 'Password reset successful! You can now login with your new password.'
+        });
+    } catch (error) {
+        console.error('ResetPassword Error:', error);
+        res.status(500).json({ message: 'Server error during password reset.' });
     }
 };

@@ -849,15 +849,8 @@ select {
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
   padding: 4px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  /* Firefox */
   max-width: 100%;
-}
-
-.toolbar-center::-webkit-scrollbar {
-  display: none;
-  /* Chrome/Safari */
+  flex-wrap: wrap;
 }
 
 .toolbar-divider {
@@ -2690,6 +2683,24 @@ canvas.shape-cursor {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.video-action-btn {
+  background: rgba(0, 0, 0, 0.4);
+  border: none;
+  color: white;
+  padding: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-fast);
+}
+
+.video-action-btn:hover {
+  background: var(--accent-primary);
+  transform: scale(1.1);
 }
 
 /* Responsive - Simple Whiteboard */

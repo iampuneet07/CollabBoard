@@ -131,7 +131,9 @@ const Dashboard = () => {
     };
 
     const isHost = (room) => {
-        return room.host?._id === user?.id || room.host === user?.id;
+        const userId = user?.id || user?._id;
+        const hostId = room.host?._id || room.host;
+        return hostId?.toString() === userId?.toString();
     };
 
     return (

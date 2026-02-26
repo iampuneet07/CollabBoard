@@ -36,4 +36,14 @@ router.get('/me', auth, authController.getMe);
 // @route   PUT /api/auth/profile
 router.put('/profile', auth, authController.updateProfile);
 
+// @route   POST /api/auth/forgot-password
+router.post('/forgot-password', [
+    body('email').isEmail().withMessage('Please enter a valid email')
+], authController.forgotPassword);
+
+// @route   PUT /api/auth/reset-password/:token
+router.put('/reset-password/:token', [
+    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
+], authController.resetPassword);
+
 module.exports = router;
